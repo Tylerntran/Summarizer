@@ -1,0 +1,10 @@
+ffmpeg-python
+whisper
+moviepy==2.0.dev2
+youtube-transcript-api
+openai==0.28
+git+https://github.com/openai/whisper.git
+transformers
+sounddevice
+numpy
+scikit-learn
