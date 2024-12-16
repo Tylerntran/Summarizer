@@ -636,11 +636,11 @@ def main():
 
             # Ensure we are not sending an empty query
             if final_query.strip() != "":
-                user_q, gpt_response = chatBotInteraction(final_query, str(st.session_state['cleaned_srt']), tokenizer, model)
-              # Append the user query (not the full prompt)
-              st.session_state.messages.append(user_q)
-              # Append the assistant's response
-              st.session_state.messages.append(gpt_response)
+               user_q, gpt_response = chatBotInteraction(final_query, str(st.session_state['cleaned_srt']), tokenizer, model)
+               # Append the user query (not the full prompt)
+               st.session_state.messages.append(user_q)
+               # Append the assistant's response
+               st.session_state.messages.append(gpt_response)
 
             # Clear the temp query after the interaction is handled
             st.session_state.temp_query = ""  # Reset temp_query after sending
