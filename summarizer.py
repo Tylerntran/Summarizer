@@ -391,11 +391,14 @@ def chatBotInteraction(query, summary, tokenizer, model):
     # Find the most relevant document
     doc = find_most_relevant_document(query, document_embeddings, sentences, tokenizer, model, summary)
 
-    # Construct the prompt
+    # Construct the prompt for the model (internal use only)
     prompt = f"answer the query: {query}, and use the following information to guide your answer: {doc}"
 
-    user_q = {"role": "user", "content": prompt}
-    response = get_completion([user_q])
+    # Call GPT model with the constructed prompt
+    user_q = {"role": "user", "content": query}  # User's original query
+    system_message = {"role": "system", "content": prompt}  # Full prompt for GPT
+    response = get_completion([system_message])
+
     gpt_response = {"role": "assistant", "content": response}
 
     return user_q, gpt_response
@@ -482,6 +485,9 @@ def main():
       st.session_state['video_path'] = video_path
 
     elif uploaded_video is not None:
+      if not openai_api_key:
+        st.info("Please add your OpenAI API key to continue.")
+        st.stop()
       # Display video and transcript underneath
       srt = get_file_transcript(uploaded_video)
       st.session_state['raw_transcript'] = srt
@@ -630,10 +636,11 @@ def main():
 
             # Ensure we are not sending an empty query
             if final_query.strip() != "":
-                # Handle chatbot interaction -- Haydee's work
                 user_q, gpt_response = chatBotInteraction(final_query, str(st.session_state['cleaned_srt']), tokenizer, model)
-                st.session_state.messages.append(user_q)
-                st.session_state.messages.append(gpt_response)
+              # Append the user query (not the full prompt)
+              st.session_state.messages.append(user_q)
+              # Append the assistant's response
+              st.session_state.messages.append(gpt_response)
 
             # Clear the temp query after the interaction is handled
             st.session_state.temp_query = ""  # Reset temp_query after sending
