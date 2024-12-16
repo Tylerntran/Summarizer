@@ -598,57 +598,51 @@ def main():
         #     #st.rerun()
         # Input row: mic button and text input
 
-        col1, col2 = st.columns([0.1, 0.9])  # Adjust column widths as needed
+        # Input row: mic button and text input
+    col1, col2 = st.columns([0.1, 0.9])  # Adjust column widths as needed
 
-        with col1:
-            # Microphone button
-            if st.button("🎤", key="mic_button"):
-                st.session_state.is_listening = True
-                st.session_state.query_placeholder = "Recording... Please speak into the microphone."
+    with col1:
+        # Microphone button (starts recording)
+        if st.button("🎤", key="mic_button"):
+            st.session_state.is_listening = True
+            st.session_state.query_placeholder = "Recording... Please speak into the microphone."
 
-        with col2:
-            # Chat input box
-            query = st.chat_input(placeholder="Type your query here...", key="query")
+    with col2:
+        # Text input box for queries
+        query = st.chat_input(placeholder="Type your query here...", key="query")
 
-        # Microphone recording logic
-        if st.session_state.is_listening:
-            # Perform recording
-            audio_file = record_audio(duration=10)  # Record audio
+    # Microphone recording logic
+    if st.session_state.is_listening:
+        # Use Streamlit's audio input for recording
+        transcription = record_audio_with_streamlit()  # Get transcription of the recorded audio
+
+        if transcription:
             st.session_state.query_placeholder = "✅ Recording complete. Processing transcription..."
+            st.session_state.temp_query = transcription  # Store the transcription as the query
+            st.session_state.is_listening = False  # Reset listening state
 
-            # Transcribe and set as input
-            transcription = transcribe_audio(audio_file)  # Transcribe audio
-            st.session_state.query_placeholder = transcription  # Update transcription as placeholder text
+    # Handle query submission (either typed or transcribed from speech)
+    if query or 'temp_query' in st.session_state:
+        if not openai_api_key:
+            st.info("Please add your OpenAI API key to continue.")
+            st.stop()
 
-            # Store the transcription temporarily
-            st.session_state.temp_query = transcription  # Use temp_query instead of st.session_state.query
-            st.session_state.is_listening = False  # Reset state
+        # Get the correct query (either from text input or transcription)
+        final_query = query if query else st.session_state.temp_query
 
-        # Handle query submission
-        if query or 'temp_query' in st.session_state:
-            # Ensure API key is available -- Haydee
-            if not openai_api_key:
-                st.info("Please add your OpenAI API key to continue.")
-                st.stop()
+        # Ensure the query is not empty
+        if final_query.strip() != "":
+            user_q, gpt_response = chatBotInteraction(final_query, str(st.session_state['cleaned_srt']), tokenizer, model)
+            st.session_state.messages.append(user_q)
+            st.session_state.messages.append(gpt_response)
 
-            # Get the correct query (either from the text input or transcription)
-            final_query = query if query else st.session_state.temp_query
+        # Clear temp query after submission
+        st.session_state.temp_query = ""  # Reset temp_query after sending
+        st.session_state.query_placeholder = "Type your query here..."
 
-            # Ensure we are not sending an empty query
-            if final_query.strip() != "":
-               user_q, gpt_response = chatBotInteraction(final_query, str(st.session_state['cleaned_srt']), tokenizer, model)
-               # Append the user query (not the full prompt)
-               st.session_state.messages.append(user_q)
-               # Append the assistant's response
-               st.session_state.messages.append(gpt_response)
-
-            # Clear the temp query after the interaction is handled
-            st.session_state.temp_query = ""  # Reset temp_query after sending
-            st.session_state.query_placeholder = "Type your query here..."
-
-            # Ensure to rerun only when new query is added
-            if final_query.strip() != "":
-                st.rerun()
+        # Ensure to rerun only when new query is added
+        if final_query.strip() != "":
+            st.rerun()
 
 
 if __name__ == "__main__":
