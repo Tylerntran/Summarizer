@@ -405,45 +405,29 @@ def chatBotInteraction(query, summary, tokenizer, model):
 
 
 # ################ Shoaib Speech to text ####################
-# Function to record audio
 import sounddevice as sd
 import numpy as np
 from scipy.io.wavfile import write
 import tempfile
 
-def record_audio(duration=5, samplerate=44100, device=None):
-    """Records audio using sounddevice and saves to a temporary file."""
+def record_audio_with_streamlit():
 
-    # Query available devices if device is not provided
-    if device is None:
-        device = sd.default.device[0]  # Use the default input device
+    audio_file = st.audio_input("Record your query") #init streamlit audio input widget
 
-    # Get the number of input channels for the selected device
-    device_info = sd.query_devices(device)
-    input_channels = device_info['max_input_channels']
+    if audio_file: #check if audio file was recorded
+    #save audio file temprorarily
+      temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav") #create temporay .wav file to save audio
+      with open(temp_file.name, 'wb') as f: #open the file w/ write-binary mode
+          f.write(audio_file.getvalue())  # write audio to file
 
-    # Ensure there is at least one input channel
-    if input_channels < 1:
-        raise ValueError("Selected device does not support any input channels.")
+      # transcribe audio using Whisper
+      transcription = transcribe_audio(temp_file.name) #use transcribe_audio helper function to transcribe query
 
-    # Record audio with the detected number of input channels
-    audio = sd.rec(int(samplerate * duration), samplerate=samplerate, channels=input_channels, dtype=np.int16, device=device)
-    sd.wait()  # Wait until recording is finished
+      os.remove(temp_file.name) #delete the temporary file after transcription
 
-    # Save audio to temporary file
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-    write(temp_file.name, samplerate, audio)
-    return temp_file.name
-
-
-# Function to transcribe and update the query box
-def transcribe_and_update_query(file_path):
-    """Transcribes audio using Whisper and updates the query box."""
-    try:
-        transcription = transcribe_audio(file_path)  # Transcribe audio
-        st.session_state.transcription_status = transcription  # Update transcription status
-    finally:
-        os.remove(file_path)  # Clean up temporary file
+      # return the transcription
+      return transcription
+    return None
 
 # ####################### Shoaib Speech to text ######################
 
@@ -454,16 +438,17 @@ model = AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')
 def main():
 
 # Initialize session state variables  -- Shoaib
-  if "summary" not in st.session_state:
-    st.session_state["summary"] = ""
-  if "transcription_status" not in st.session_state:
-    st.session_state["transcription_status"] = ""
-  if "messages" not in st.session_state:
-      st.session_state["messages"] = [{"role": "assistant", "content": "Have any questions about the video?"}]
-  if "is_listening" not in st.session_state:
-      st.session_state["is_listening"] = False
-  if "query" not in st.session_state:
-      st.session_state["query"] = ""
+  if "summary" not in st.session_state:  # check if summary exists
+    st.session_state["summary"] = ""  # init summary as empty string
+  if "transcription_status" not in st.session_state:  # check if transcription status exists
+    st.session_state["transcription_status"] = ""  # init transcription status as empty string
+  if "messages" not in st.session_state:  # check if messages exists
+      st.session_state["messages"] = [{"role": "assistant", "content": "Have any questions about the video?"}]  # init default message
+  if "is_listening" not in st.session_state:  # check if listening status exists
+      st.session_state["is_listening"] = False  # init is_listening as False
+  if "query" not in st.session_state:  # check if query exists
+      st.session_state["query"] = ""  # init query as empty string
+
 
   # Streamlit UI headers
   st.title("🎥 Video Summarizer")
@@ -572,15 +557,15 @@ def main():
 
       # Chat bot
       with chat_tab:
-        if "messages" not in st.session_state:
-          st.session_state['messages'] = [{"role": "assistant", "content": "Have any questions about the video?"}]
+        if "messages" not in st.session_state: #check if message exists
+          st.session_state['messages'] = [{"role": "assistant", "content": "Have any questions about the video?"}] #init default message
 
-        # Display the messages here
-        with st.container(height=550):
-          for msg in st.session_state.messages:
-              st.chat_message(msg["role"]).write(msg["content"])
+        # Display  messages
+        with st.container(height=550): #containeer to display messages
+          for msg in st.session_state.messages: #iteratee over all messages
+              st.chat_message(msg["role"]).write(msg["content"]) #display message
 
-        # # Chat input -- Haydee's original work
+        # # Chat input -- Haydee's original work (WE can delete these twos 568-584)
         # if prompt := st.chat_input():
         #     if not openai_api_key:
         #       st.info("Please add your OpenAI API key to continue.")
@@ -598,51 +583,46 @@ def main():
         #     #st.rerun()
         # Input row: mic button and text input
 
-        # Input row: mic button and text input
-    col1, col2 = st.columns([0.1, 0.9])  # Adjust column widths as needed
+        # input row: mic button (0.1) and text input (0.9)
+        col1, col2 = st.columns([0.1, 0.9])
 
-    with col1:
-        # Microphone button (starts recording)
-        if st.button("🎤", key="mic_button"):
-            st.session_state.is_listening = True
-            st.session_state.query_placeholder = "Recording... Please speak into the microphone."
+        with col1: #access microphone
+          if st.button("🎤", key="mic_button"): #button to start recording
+            st.session_state.is_listening = True  # set listening state to True
+            st.session_state.query_placeholder = "Recording... Please speak into the microphone." #display placeholder text message
 
-    with col2:
-        # Text input box for queries
-        query = st.chat_input(placeholder="Type your query here...", key="query")
+        with col2: #access query input box
+          query = st.chat_input(placeholder="Type your query here...", key="query") #input box for user queries
 
-    # Microphone recording logic
-    if st.session_state.is_listening:
-        # Use Streamlit's audio input for recording
-        transcription = record_audio_with_streamlit()  # Get transcription of the recorded audio
+        # Microphone recording
+        if st.session_state.is_listening: #if is_listening is True
+          transcription = record_audio_with_streamlit()  # call record audio function and transcribe audio query
 
-        if transcription:
-            st.session_state.query_placeholder = "✅ Recording complete. Processing transcription..."
-            st.session_state.temp_query = transcription  # Store the transcription as the query
-            st.session_state.is_listening = False  # Reset listening state
+          if transcription: #if transcription exists/is successful
+            st.session_state.query_placeholder = "✅ Recording complete. Processing transcription..." #update placeholder text
+            st.session_state.temp_query = transcription  # store transcription as the query
+            st.session_state.is_listening = False  # reset listening state to false
 
-    # Handle query submission (either typed or transcribed from speech)
-    if query or 'temp_query' in st.session_state:
-        if not openai_api_key:
-            st.info("Please add your OpenAI API key to continue.")
-            st.stop()
+        # query handling (either typed or transcribed from speech)
+        if query or 'temp_query' in st.session_state: #chek if there is query or a temp_query
+          if not openai_api_key: #check if API key is available
+              st.info("Please add your OpenAI API key to continue.") #show error message if no API key
+              st.stop() #stop execution
 
-        # Get the correct query (either from text input or transcription)
-        final_query = query if query else st.session_state.temp_query
+          final_query = query if query else st.session_state.temp_query  # Get  correct query (either from text input or transcription)
 
-        # Ensure the query is not empty
-        if final_query.strip() != "":
-            user_q, gpt_response = chatBotInteraction(final_query, str(st.session_state['cleaned_srt']), tokenizer, model)
-            st.session_state.messages.append(user_q)
-            st.session_state.messages.append(gpt_response)
+          if final_query.strip() != "":  #check if query is not empty
+            user_q, gpt_response = chatBotInteraction(final_query, str(st.session_state['cleaned_srt']), tokenizer, model) #process query
+            st.session_state.messages.append(user_q) #append user query to messages
+            st.session_state.messages.append(gpt_response) #append response to messages
 
-        # Clear temp query after submission
-        st.session_state.temp_query = ""  # Reset temp_query after sending
-        st.session_state.query_placeholder = "Type your query here..."
 
-        # Ensure to rerun only when new query is added
-        if final_query.strip() != "":
-            st.rerun()
+          st.session_state.temp_query = ""  # reset temp_query after sending
+          st.session_state.query_placeholder = "Type your query here..." #reset placeholder text
+
+          # Ensure to rerun only when new query is added
+          if final_query.strip() != "": #if the final query is valid
+              st.rerun() #rerun app to update state
 
 
 if __name__ == "__main__":
