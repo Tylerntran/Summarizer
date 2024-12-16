@@ -106,11 +106,15 @@ def transcribe_audio(audio_file_path):
   :param audio_file_path: path name of audio file
   :return: transcript as string of text
   """
-  model = whisper.load_model("base")
+  audio_file = open(audio_file_path, "rb")
 
-  result = model.transcribe(audio_file_path)
+  transcript = openai.Audio.transcribe(
+    file=audio_file,
+    model="whisper-1",
+    response_format="text"
+  )
 
-  return result["text"]
+  return transcript
 
 def transcribe_openAI(audio_file_path):
   """
